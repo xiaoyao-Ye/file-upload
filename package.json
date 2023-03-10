@@ -4,8 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "server": "nodemon --exec ts-node backend/index.ts",
-    "dev": "vite & npm run server",
+    "dev": "vite & nodemon --exec ts-node backend/index.ts",
     "build": "vue-tsc && vite build",
     "preview": "vite preview"
   },
