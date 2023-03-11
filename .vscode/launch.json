@@ -1,0 +1,54 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Launch Program",
+      "type": "node",
+      "request": "launch",
+      "skipFiles": ["<node_internals>/**"],
+      "program": "${workspaceFolder}/backend/index.ts",
+      "cwd": "${workspaceFolder}/backend",
+      "env": {
+        "TS_NODE_PROJECT": "./tsconfig.json"
+      },
+      "sourceMaps": true,
+      "console": "integratedTerminal",
+      "runtimeArgs": ["-r", "ts-node/register"],
+    }
+  ]
+}
+
+// {
+//   "version": "0.2.0",
+//   "configurations": [
+//     {
+//       "type": "node",
+//       "request": "launch",
+//       "name": "Debug index.ts",
+//       "program": "${workspaceFolder}/backend/index.ts",
+//       "outFiles": ["${workspaceFolder}/backend/**/*.js"],
+//       "sourceMaps": true,
+//       "cwd": "${workspaceFolder}/backend",
+//       "env": {
+//         "TS_NODE_PROJECT": "./tsconfig.json"
+//       },
+//       "runtimeArgs": [
+//         "-r",
+//         "ts-node/register"
+//       ],
+//       "console": "integratedTerminal",
+//       "internalConsoleOptions": "neverOpen",
+//       "restart": true,
+//       "skipFiles": [
+//         "<node_internals>/**"
+//       ],
+//       "args": [
+//         "--ignore",
+//         "node_modules/"
+//       ]
+//     }
+//   ]
+// }
