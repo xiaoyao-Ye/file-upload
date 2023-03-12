@@ -63,7 +63,7 @@ const uploadChunks = async (chunks: Blob[] = [], hash: string) => {
     formData.append('chunk', chunk);
     formData.append('hash', `${hash}-${index}`);
     formData.append('fileName', selectedFile.value?.name ?? '');
-    // formData.append('fileHash', hash);
+    formData.append('fileHash', hash);
     return { formData, index };
   }).map(({ formData, index }) => {
     return uploadFile(formData, index);

@@ -30,17 +30,17 @@ class UploadController {
       console.log(fields);
       console.log(files);
       const [hash] = fields.hash;
-      // const [fileHash] = fields.fileHash;
+      const [fileHash] = fields.fileHash;
       const [fileName] = fields.fileName;
       const [chunk] = files.chunk;
-      const filePath = path.resolve(UPLOAD_DIR, `${fileName}` + SUFFIX);
+      const filePathDir = path.resolve(UPLOAD_DIR, `${fileName}-${fileHash}` + SUFFIX);
 
-      if (!fse.existsSync(filePath)) await fse.mkdirs(filePath, { mode: 0o2775 });
+      if (!fse.existsSync(filePathDir)) await fse.mkdirs(filePathDir, { mode: 0o2775 });
 
-      // TODO: file.path 位置会存在一个临时文件, 需要清理, 否则占用磁盘c空间
-      // TODO: 查询如何将windows的临时文件改成c盘以外的其他盘存放
       // TODO: 先判断文件是否存在, 如果存在则不再写入, 并告诉前端当前文件已存在(或者让前端先调用接口判断是否已存在, 存在则秒传)
-      await fse.move(chunk.path, `${filePath}/${hash}`);
+      await fse.move(chunk.path, `${filePathDir}/${hash}`);
+      // TODO: chunk.path 位置会存在一个临时文件, 需要清理, 否则占用磁盘c空间 (定时器定时清理? 还是每次move完毕即可清理)
+      await fse.remove(chunk.path);
 
       res.end('Upload completed!');
     });
@@ -49,20 +49,22 @@ class UploadController {
   async mergeChunks(req: any, res: any) {
     const data: any = await this.getData(req);
     const { fileName, fileHash } = data;
+    const filePathDir = path.resolve(UPLOAD_DIR, `${fileName}-${fileHash}` + SUFFIX);
     const filePath = path.resolve(UPLOAD_DIR, fileName + SUFFIX);
     // 过滤出所有的chunk文件
-    let chunkPaths = await fse.readdir(filePath)
+    let chunkPaths = await fse.readdir(filePathDir)
     chunkPaths = chunkPaths.filter((chunkPath) => chunkPath.includes(fileHash));
     chunkPaths.sort((a, b) => a.split('-')[1] - b.split('-')[1]);
     try {
       await Promise.all(
         chunkPaths.map((chunkPath) => {
-          const chunk = fse.readFileSync(`${filePath}/${chunkPath}`)
-          // fse.mkdirs(filePath)
+          const chunk = fse.readFileSync(`${filePathDir}/${chunkPath}`)
           // 合并chunk文件
           fse.outputFile(filePath, chunk)
         })
       )
+      // 删除chunk文件夹
+      await fse.remove(filePathDir);
       res.end('Merge completed!');
       // TODO: 合并后删除chunk文件?
     } catch (error) {
