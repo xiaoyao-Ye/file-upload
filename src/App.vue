@@ -30,7 +30,8 @@ const onSubmit = async () => {
   const hash = await calculateHash(chunks);
   console.log('hash', hash);
   await uploadChunks(chunks, hash);
-  await mergeChunks({ fileHash: hash, fileName: selectedFile.value?.name ?? '' })
+  const mergeOptions = { fileHash: hash, fileName: selectedFile.value?.name ?? '', size: selectedFile.value?.size ?? 0 }
+  await mergeChunks(mergeOptions);
 }
 
 const createFileChunk = (file: File, size = SIZE) => {

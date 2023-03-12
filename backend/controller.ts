@@ -39,7 +39,7 @@ class UploadController {
 
       // TODO: 先判断文件是否存在, 如果存在则不再写入, 并告诉前端当前文件已存在(或者让前端先调用接口判断是否已存在, 存在则秒传)
       await fse.move(chunk.path, `${filePathDir}/${hash}`);
-      // TODO: chunk.path 位置会存在一个临时文件, 需要清理, 否则占用磁盘c空间 (定时器定时清理? 还是每次move完毕即可清理)
+      // chunk.path 位置会存在一个临时文件, 需要清理, 否则占用磁盘c空间 (定时器定时清理? 目前是每次move完毕即清理)
       await fse.remove(chunk.path);
 
       res.end('Upload completed!');
@@ -48,7 +48,7 @@ class UploadController {
 
   async mergeChunks(req: any, res: any) {
     const data: any = await this.getData(req);
-    const { fileName, fileHash } = data;
+    const { fileName, fileHash, size } = data;
     const filePathDir = path.resolve(UPLOAD_DIR, `${fileName}-${fileHash}` + SUFFIX);
     const filePath = path.resolve(UPLOAD_DIR, fileName + SUFFIX);
     // 过滤出所有的chunk文件
@@ -57,10 +57,13 @@ class UploadController {
     chunkPaths.sort((a, b) => a.split('-')[1] - b.split('-')[1]);
     try {
       await Promise.all(
-        chunkPaths.map((chunkPath) => {
+        chunkPaths.map((chunkPath, index) => {
           const chunk = fse.readFileSync(`${filePathDir}/${chunkPath}`)
           // 合并chunk文件
-          fse.outputFile(filePath, chunk)
+          const writer = fse.createWriteStream(filePath, { start: size * index })
+          writer.write(chunk)
+          writer.end()
+          // fse.outputFile(filePath, chunk)
         })
       )
       // 删除chunk文件夹

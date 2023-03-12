@@ -16,6 +16,6 @@ export const uploadFile = async (fd: FormData, index: number) => {
   // return await service.post('/upload', { data: fd });
 }
 
-export const mergeChunks = async (data: { fileName: string, fileHash: string }) => {
+export const mergeChunks = async (data: { fileName: string, fileHash: string, size: number }) => {
   return await service.post('/merge', data);
 }
