@@ -26,7 +26,10 @@ server.on('request', async (req, res) => {
   }
 
   if (req.url === '/upload') {
-    return await controller.uploadFile(req, res);
+    return await controller.saveChunk(req, res);
+  }
+  if (req.url === '/merge') {
+    return await controller.mergeChunks(req, res);
   }
 });
 
