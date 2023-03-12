@@ -25,3 +25,8 @@
   3.6 抽样hash + 全量hash双重判断
   3.7 websocket 推送
   3.8 cdn...
+
+## TODO
+
+- [ ] 服务器部分使用 nest.js
+- [ ] 前端部分使用 element-plus
