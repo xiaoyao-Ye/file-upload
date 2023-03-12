@@ -30,7 +30,7 @@ const onSubmit = async () => {
   const hash = await calculateHash(chunks);
   console.log('hash', hash);
   await uploadChunks(chunks, hash);
-  const mergeOptions = { fileHash: hash, fileName: selectedFile.value?.name ?? '', size: selectedFile.value?.size ?? 0 }
+  const mergeOptions = { fileHash: hash, fileName: selectedFile.value?.name ?? '', size: SIZE }
   await mergeChunks(mergeOptions);
 }
 
@@ -69,8 +69,12 @@ const uploadChunks = async (chunks: Blob[] = [], hash: string) => {
   }).map(({ formData, index }) => {
     return uploadFile(formData, index);
   });
-  console.log('requestList', requestList);
-  await Promise.all(requestList);
+  console.log('requestList count: ', requestList.length);
+  await Promise.all(requestList).then((res) => {
+    console.log('result', res);
+  }).catch((err) => {
+    console.log('error', err);
+  })
 }
 
 </script>

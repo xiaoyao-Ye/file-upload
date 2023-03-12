@@ -7,8 +7,8 @@ export const uploadFile = async (fd: FormData, index: number) => {
     method: 'post',
     data: fd,
     onUploadProgress: (progressEvent) => {
-      console.log('index: ', index);
-      console.log(progressEvent);
+      // console.log('index: ', index);
+      // console.log(progressEvent);
       console.log("progress: ", progressEvent.loaded / progressEvent.total!);
     }
   })
