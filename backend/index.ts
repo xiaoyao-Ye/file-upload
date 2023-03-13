@@ -31,6 +31,10 @@ server.on('request', async (req, res) => {
   if (req.url === '/merge') {
     return await controller.mergeChunks(req, res);
   }
+  // if (req.url.includes('/static')) {
+  // 开静态资源服务
+  //   return await controller.getStatic(req, res);
+  // }
 });
 
 server.listen(3000, () => {

@@ -2,8 +2,6 @@ import multiparty from 'multiparty'
 const path = require("path");
 const fse = require("fs-extra");
 
-// const SUFFIX = '$file'; // 文件后缀
-const SUFFIX = ''; // 文件后缀
 const UPLOAD_DIR = path.resolve(__dirname, './', 'target'); // 文件存储目录
 
 class UploadController {
@@ -27,13 +25,13 @@ class UploadController {
     const form = new multiparty.Form();
     form.parse(req, async (err, fields, files) => {
       if (err) throw new Error("parse error: " + err);
-      console.log(fields);
-      console.log(files);
+      // console.log(fields);
+      // console.log(files);
       const [hash] = fields.hash;
       const [fileHash] = fields.fileHash;
       const [fileName] = fields.fileName;
       const [chunk] = files.chunk;
-      const filePathDir = path.resolve(UPLOAD_DIR, `${fileName}-${fileHash}` + SUFFIX);
+      const filePathDir = path.resolve(UPLOAD_DIR, `${fileName}-${fileHash}`);
 
       if (!fse.existsSync(filePathDir)) await fse.mkdirs(filePathDir, { mode: 0o2775 });
 
@@ -49,8 +47,8 @@ class UploadController {
   async mergeChunks(req: any, res: any) {
     const data: any = await this.getData(req);
     const { fileName, fileHash, size } = data;
-    const filePathDir = path.resolve(UPLOAD_DIR, `${fileName}-${fileHash}` + SUFFIX);
-    const filePath = path.resolve(UPLOAD_DIR, fileName + SUFFIX);
+    const filePathDir = path.resolve(UPLOAD_DIR, `${fileName}-${fileHash}`);
+    const filePath = path.resolve(UPLOAD_DIR, fileName);
     // 过滤出所有的chunk文件
     let chunkPaths = await fse.readdir(filePathDir)
     chunkPaths = chunkPaths.filter((chunkPath) => chunkPath.includes(fileHash));
@@ -68,13 +66,17 @@ class UploadController {
       )
       // 删除chunk文件夹
       await fse.remove(filePathDir);
-      res.end('Merge completed!');
-      // TODO: 合并后删除chunk文件?
+      // res.end('Merge completed!');
+      res.end({ code: 200, data: { url: `http://localhost:3000/backend/target/${filePath}`, path: `/target/${filePath}` }, message: 'Merge completed!' });
     } catch (error) {
       console.log(error);
     }
-
   }
+
+  // async getStatic(req: any, res: any) {
+  // 静态资源
+  // return fse.readFileSync()
+  // }
 }
 
 const controller = new UploadController();
