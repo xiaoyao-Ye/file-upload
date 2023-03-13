@@ -51,3 +51,17 @@
 
 - 上传到服务器, 有临时文件, 需要定时清理.
 - axios 设置有超时时间, 当上传文件比较大的时候, 后端合并文件可能需要比较久(大概以G为单位会出现?), 导致 merge 请求超时 axios 自动取消请求, 无法合并.
+
+## other
+
+启动项目:
+
+> 启动对应的项目需要先去对应的项目安装 node_modules
+
+```bash
+pnpm install
+# 前端
+pnpm run dev
+# 服务端
+pnpm run start
+```
