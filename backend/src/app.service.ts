@@ -53,7 +53,8 @@ export class AppService {
 
   async mergeChunks({ fileName, fileHash, size }) {
     const filePathDir = resolve(this.UPLOAD_DIR, `${fileName}-${fileHash}`);
-    const filePath = resolve(this.UPLOAD_DIR, fileName);
+    // const filePath = resolve(this.UPLOAD_DIR, fileName);
+    const filePath = resolve(this.UPLOAD_DIR, `${fileHash}-${fileName}`);
     // 过滤出所有的chunk文件
     let chunkPaths = await readdir(filePathDir);
     chunkPaths = chunkPaths.filter((chunkPath) => chunkPath.includes(fileHash));
@@ -71,9 +72,10 @@ export class AppService {
       );
       // 删除chunk文件夹
       await remove(filePathDir);
-      const path = join('/static/upload', fileName);
+      // const path = `/static/upload/${fileName}`;
+      const path = `/static/upload/${fileHash}-${fileName}`;
       const data = {
-        url: `http://localhost:1024/${path}`,
+        url: `http://localhost:1024${path}`,
         path: path,
       };
       return { code: 200, data, message: 'Merge completed!' };
