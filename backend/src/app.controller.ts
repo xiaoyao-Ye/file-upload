@@ -3,7 +3,7 @@ import { AppService } from './app.service';
 
 @Controller()
 export class AppController {
-  constructor(private readonly appService: AppService) {}
+  constructor(private readonly appService: AppService) { }
 
   @Get()
   getHello(): string {
@@ -18,5 +18,10 @@ export class AppController {
   @Post('/merge')
   async mergeChunks(@Body() body) {
     return await this.appService.mergeChunks(body);
+  }
+
+  @Post('/verify')
+  async verifyFile(@Body() body) {
+    return await this.appService.verifyFile(body);
   }
 }

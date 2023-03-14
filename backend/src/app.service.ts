@@ -8,7 +8,7 @@ import {
   readFileSync,
   createWriteStream,
 } from 'fs-extra';
-import { join, resolve } from 'path';
+import { resolve } from 'path';
 import { Form } from 'multiparty';
 
 @Injectable()
@@ -17,6 +17,12 @@ export class AppService {
   UPLOAD_DIR: string;
   constructor() {
     this.UPLOAD_DIR = resolve(__dirname, '../', 'public', 'upload');
+  }
+
+  getStaticFilePath(fileName: string) {
+    const path = `/static/upload/${fileName}}`;
+    // TODO: http://localhost:1024
+    return { path, url: `http://localhost:1024${path}` };
   }
 
   getHello(): string {
@@ -46,7 +52,7 @@ export class AppService {
         // chunk.path 位置会存在一个临时文件, 需要清理, 否则占用磁盘c空间 (定时器定时清理? 目前是每次move完毕即清理)
         await remove(chunk.path);
         // return { code: 200, message: 'Upload completed!' };
-        res({ code: 200, message: 'Upload completed!' });
+        res({ code: 200, message: 'Upload chunk completed!' });
       });
     });
   }
@@ -73,14 +79,32 @@ export class AppService {
       // 删除chunk文件夹
       await remove(filePathDir);
       // const path = `/static/upload/${fileName}`;
-      const path = `/static/upload/${fileHash}-${fileName}`;
-      const data = {
-        url: `http://localhost:1024${path}`,
-        path: path,
-      };
-      return { code: 200, data, message: 'Merge completed!' };
+      const data = this.getStaticFilePath(`${fileHash}-${fileName}`);
+      return { code: 200, data, message: 'Upload completed!' };
     } catch (error) {
       console.log(error);
+    }
+  }
+
+  async verifyFile({ fileName, fileHash }) {
+    const filePath = resolve(this.UPLOAD_DIR, `${fileHash}-${fileName}`);
+    if (existsSync(filePath)) {
+      const data = this.getStaticFilePath(`${fileHash}-${fileName}`);
+      return {
+        code: 200,
+        data: { ...data, needUpload: false },
+        message: 'Upload completed!',
+      };
+    } else {
+      const filePathDir = resolve(this.UPLOAD_DIR, `${fileName}-${fileHash}`);
+      const chunkList = existsSync(filePathDir)
+        ? await readdir(filePathDir)
+        : [];
+      return {
+        code: 200,
+        data: { chunkList, needUpload: true },
+        message: 'Merge completed!',
+      };
     }
   }
 }
