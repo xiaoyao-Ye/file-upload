@@ -57,11 +57,14 @@ const onSubmit = async () => {
   console.log('chunks', chunks);
   const hash = await calculateHash(chunks);
   console.log('hash', hash);
-  await uploadChunks(chunks, hash);
-  const mergeOptions = { fileHash: hash, fileName: selectedFile.value?.name ?? '', size: SIZE }
-  await mergeChunks(mergeOptions);
-  ElMessage({ message: '上传成功.', type: 'success' })
-  loading.value = false;
+  try {
+    await uploadChunks(chunks, hash);
+    const mergeOptions = { fileHash: hash, fileName: selectedFile.value?.name ?? '', size: SIZE }
+    await mergeChunks(mergeOptions);
+    ElMessage({ message: '上传成功.', type: 'success' })
+  } finally {
+    loading.value = false;
+  }
 }
 
 const createFileChunk = (file: File, size = SIZE) => {
