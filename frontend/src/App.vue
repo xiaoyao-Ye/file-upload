@@ -4,17 +4,13 @@
     <el-card class="box-card">
       <input type="file" ref="fileRef" :disabled="loading" @change="handleFileUpload" />
       <el-button @click="onSubmit" :loading="loading">upload</el-button>
-      <p v-if="!selectedFile">只能上传 XXX/XXX/XXX 格式的文件, 并且大小不能超过2MB</p>
-      <!-- <p v-else>
-        文件名: {{ selectedFile.name }}
-        <el-button type="danger" @click="handleDelete">remove</el-button>
-      </p> -->
-      <br />
-      <br />
+      <div v-show="!loading">只能上传 XXX/XXX/XXX 格式的文件, 并且大小不能超过2MB</div>
       <div v-show="loading"><el-progress :percentage="percentage" /></div>
+
+      <!-- <div v-show="selectedFile"> 文件名: {{ selectedFile.name }} <el-button type="danger" @click="handleDelete">remove</el-button> </div> -->
+      <br />
+      <br />
     </el-card>
-    <!-- <el-card class="box-card">
-    </el-card> -->
   </div>
 </template>
 
@@ -39,18 +35,18 @@ const loading = ref(false);
 
 const handleFileUpload = async (event: Event) => {
   const file = (<HTMLInputElement>event.target).files?.[0];
-  if (!file) return;
+  if (!file) return selectedFile.value = null;
   if (!TYPE.includes(file.type)) return ElMessage({ message: '文件类型错误!', type: 'error' });
   if (file.size > MAX_SIZE) return ElMessage({ message: '文件大小不能超过2MB!', type: 'error' });
   console.log('handleFileUpload', file)
   selectedFile.value = file;
 }
 
-const handleDelete = () => {
-  selectedFile.value = null;
-  fileRef.value.value = '';
-  // percentage.value = 0;
-}
+// const handleDelete = () => {
+//   selectedFile.value = null;
+//   fileRef.value.value = '';
+//   // percentage.value = 0;
+// }
 
 const onSubmit = async () => {
   console.log('onSubmit')
