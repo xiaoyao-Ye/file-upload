@@ -2,11 +2,16 @@
   <div>
     <!-- 单文件 -->
     <el-card class="box-card">
-      <input type="file" @change="handleFileUpload">
-      <el-button @click="onSubmit">upload</el-button>
+      <input type="file" ref="fileRef" :disabled="loading" @change="handleFileUpload" />
+      <el-button @click="onSubmit" :loading="loading">upload</el-button>
+      <p v-if="!selectedFile">只能上传 XXX/XXX/XXX 格式的文件, 并且大小不能超过2MB</p>
+      <!-- <p v-else>
+        文件名: {{ selectedFile.name }}
+        <el-button type="danger" @click="handleDelete">remove</el-button>
+      </p> -->
       <br />
       <br />
-      <el-progress :percentage="percentage" />
+      <div v-show="loading"><el-progress :percentage="percentage" /></div>
     </el-card>
     <!-- <el-card class="box-card">
     </el-card> -->
@@ -18,21 +23,40 @@ import SparkMD5 from 'spark-md5';
 import { mergeChunks, uploadFile } from './api/upload/api';
 import { limitQueue } from './hook/upload';
 
+const fileRef = ref();
+
+/** 限制类型(用accept也可以, 但是都没有利用二进制信息判断安全) */
+const TYPE = ['image/png', 'image/jpeg', 'image/gif'];
+/** 限制文件大小 */
+const MAX_SIZE = 2 * 1024 * 1024;
 /** 分片大小 */
-// const SIZE = 5 * 1024;
-const SIZE = 5 * 1024 * 1024;
+const SIZE = 5 * 1024;
+// const SIZE = 5 * 1024 * 1024;
 const selectedFile = ref<File | null>(null);
 /** 上传进度 */
 const percentage = ref(0);
+const loading = ref(false);
 
 const handleFileUpload = async (event: Event) => {
-  selectedFile.value = (<HTMLInputElement>event.target).files?.[0] ?? null;
-  console.log('handleFileUpload', selectedFile.value)
+  const file = (<HTMLInputElement>event.target).files?.[0];
+  if (!file) return;
+  if (!TYPE.includes(file.type)) return ElMessage({ message: '文件类型错误!', type: 'error' });
+  if (file.size > MAX_SIZE) return ElMessage({ message: '文件大小不能超过2MB!', type: 'error' });
+  console.log('handleFileUpload', file)
+  selectedFile.value = file;
+}
+
+const handleDelete = () => {
+  selectedFile.value = null;
+  fileRef.value.value = '';
+  // percentage.value = 0;
 }
 
 const onSubmit = async () => {
   console.log('onSubmit')
-  if (!selectedFile.value) return;
+  if (!selectedFile.value) return ElMessage({ message: '请选择文件', type: 'error' });
+  loading.value = true;
+  percentage.value = 0;
   const chunks = createFileChunk(selectedFile.value);
   console.log('chunks', chunks);
   const hash = await calculateHash(chunks);
@@ -41,6 +65,7 @@ const onSubmit = async () => {
   const mergeOptions = { fileHash: hash, fileName: selectedFile.value?.name ?? '', size: SIZE }
   await mergeChunks(mergeOptions);
   ElMessage({ message: '上传成功.', type: 'success' })
+  loading.value = false;
 }
 
 const createFileChunk = (file: File, size = SIZE) => {
