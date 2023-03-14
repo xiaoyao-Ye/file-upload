@@ -8,7 +8,7 @@ import {
   readFileSync,
   createWriteStream,
 } from 'fs-extra';
-import { resolve } from 'path';
+import { join, resolve } from 'path';
 import { Form } from 'multiparty';
 
 @Injectable()
@@ -71,9 +71,10 @@ export class AppService {
       );
       // 删除chunk文件夹
       await remove(filePathDir);
+      const path = join('/static/upload', fileName);
       const data = {
-        url: `http://localhost:1024/public/upload/${fileName}`,
-        path: `/public/upload/${fileName}`,
+        url: `http://localhost:1024/${path}`,
+        path: path,
       };
       return { code: 200, data, message: 'Merge completed!' };
     } catch (error) {
