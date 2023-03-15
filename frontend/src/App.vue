@@ -27,8 +27,8 @@ const TYPE = ['image/png', 'image/jpeg', 'image/gif'];
 /** 限制文件大小 */
 const MAX_SIZE = 5 * 1024 * 1024;
 /** 分片大小 */
-const SIZE = 5 * 1024;
-// const SIZE = 5 * 1024 * 1024;
+// const SIZE = 5 * 1024;
+const SIZE = 5 * 1024 * 1024;
 const selectedFile = ref<File | null>(null);
 /** 上传进度 */
 const percentage = ref(0);

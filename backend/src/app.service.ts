@@ -25,6 +25,16 @@ export class AppService {
     return { path, url: `http://localhost:1024${path}` };
   }
 
+  getFileType(fileName: string) {
+    const index = fileName.lastIndexOf('.');
+    if (index === -1) return '';
+    return fileName.slice(index);
+  }
+
+  getStorageName(fileHash, fileName) {
+    return `${fileHash}${this.getFileType(fileName)}`;
+  }
+
   getHello(): string {
     return 'Hello World!';
   }
@@ -34,21 +44,26 @@ export class AppService {
     return new Promise((res) => {
       form.parse(req, async (err, fields, files) => {
         if (err) throw new Error('parse error: ' + err);
-        // console.log(fields);
-        // console.log(files);
         const [hash] = fields.hash;
         const [fileHash] = fields.fileHash;
         const [fileName] = fields.fileName;
         const [chunk] = files.chunk;
 
-        const filePathDir = resolve(this.UPLOAD_DIR, `${fileName}-${fileHash}`);
+        const storageName = this.getStorageName(fileHash, fileName);
+        const filePath = resolve(this.UPLOAD_DIR, storageName);
+        const chunkDir = resolve(this.UPLOAD_DIR, fileHash);
+        const chunkPath = resolve(chunkDir, hash);
 
-        if (!existsSync(filePathDir)) {
-          await mkdirs(filePathDir, { mode: 0o2775 });
+        /** 文件存在直接返回 */
+        if (existsSync(filePath)) return { code: 200, message: 'file exist!' };
+        /** 切片存在直接返回 */
+        if (existsSync(chunkPath)) return { code: 200, message: 'chunk exist!' };
+
+        if (!existsSync(chunkDir)) {
+          await mkdirs(chunkDir, { mode: 0o2775 });
         }
 
-        // TODO: 先判断文件是否存在, 如果存在则不再写入, 并告诉前端当前文件已存在(或者让前端先调用接口判断是否已存在, 存在则秒传)
-        await move(chunk.path, `${filePathDir}/${hash}`);
+        await move(chunk.path, chunkPath);
         // chunk.path 位置会存在一个临时文件, 需要清理, 否则占用磁盘c空间 (定时器定时清理? 目前是每次move完毕即清理)
         await remove(chunk.path);
         // return { code: 200, message: 'Upload completed!' };
@@ -58,17 +73,17 @@ export class AppService {
   }
 
   async mergeChunks({ fileName, fileHash, size }) {
-    const filePathDir = resolve(this.UPLOAD_DIR, `${fileName}-${fileHash}`);
-    // const filePath = resolve(this.UPLOAD_DIR, fileName);
-    const filePath = resolve(this.UPLOAD_DIR, `${fileHash}-${fileName}`);
+    const storageName = this.getStorageName(fileHash, fileName);
+    const chunkDir = resolve(this.UPLOAD_DIR, fileHash);
+    const filePath = resolve(this.UPLOAD_DIR, storageName);
     // 过滤出所有的chunk文件
-    let chunkPaths = await readdir(filePathDir);
+    let chunkPaths = await readdir(chunkDir);
     chunkPaths = chunkPaths.filter((chunkPath) => chunkPath.includes(fileHash));
     chunkPaths.sort((a, b) => a.split('-')[1] - b.split('-')[1]);
     try {
       await Promise.all(
         chunkPaths.map((chunkPath, index) => {
-          const chunk = readFileSync(`${filePathDir}/${chunkPath}`);
+          const chunk = readFileSync(`${chunkDir}/${chunkPath}`);
           // 合并chunk文件
           const writer = createWriteStream(filePath, { start: size * index });
           writer.write(chunk);
@@ -77,9 +92,9 @@ export class AppService {
         }),
       );
       // 删除chunk文件夹
-      await remove(filePathDir);
+      await remove(chunkDir);
       // const path = `/static/upload/${fileName}`;
-      const data = this.getStaticFilePath(`${fileHash}-${fileName}`);
+      const data = this.getStaticFilePath(storageName);
       return { code: 200, data, message: 'Upload completed!' };
     } catch (error) {
       console.log(error);
@@ -87,19 +102,18 @@ export class AppService {
   }
 
   async verifyFile({ fileName, fileHash }) {
-    const filePath = resolve(this.UPLOAD_DIR, `${fileHash}-${fileName}`);
+    const storageName = this.getStorageName(fileHash, fileName);
+    const filePath = resolve(this.UPLOAD_DIR, storageName);
     if (existsSync(filePath)) {
-      const data = this.getStaticFilePath(`${fileHash}-${fileName}`);
+      const data = this.getStaticFilePath(storageName);
       return {
         code: 200,
         data: { ...data, needUpload: false },
         message: 'Upload completed!',
       };
     } else {
-      const filePathDir = resolve(this.UPLOAD_DIR, `${fileName}-${fileHash}`);
-      const chunkList = existsSync(filePathDir)
-        ? await readdir(filePathDir)
-        : [];
+      const chunkDir = resolve(this.UPLOAD_DIR, fileHash);
+      const chunkList = existsSync(chunkDir) ? await readdir(chunkDir) : [];
       return {
         code: 200,
         data: { chunkList, needUpload: true },
