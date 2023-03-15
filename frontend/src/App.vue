@@ -4,10 +4,16 @@
     <el-card class="box-card">
       <input type="file" ref="fileRef" :disabled="loading" @change="handleFileUpload" />
       <el-button @click="onSubmit" :loading="loading">upload</el-button>
-      <div v-show="!loading">只能上传 XXX/XXX/XXX 格式的文件, 并且大小不能超过5MB</div>
-      <div v-show="loading"><el-progress :percentage="percentage" /></div>
+      <div style="height: 2em;">
+        <span v-show="!loading" style="font-size: 14px;color:#ccc;">只能上传 XXX/XXX/XXX 格式的文件, 并且大小不能超过5MB</span>
+      </div>
+      <div v-show="loading || percentage === 100">
+        <div>calculate chunk Hash</div>
+        <el-progress :percentage="percentage" />
+        <div>upload percentage</div>
+        <el-progress :percentage="percentage" />
+      </div>
 
-      <!-- <div v-show="selectedFile"> 文件名: {{ selectedFile.name }} <el-button type="danger" @click="handleDelete">remove</el-button> </div> -->
       <br />
       <br />
     </el-card>
@@ -37,8 +43,8 @@ const loading = ref(false);
 const handleFileUpload = async (event: Event) => {
   const file = (<HTMLInputElement>event.target).files?.[0];
   if (!file) return selectedFile.value = null;
-  if (!TYPE.includes(file.type)) return ElMessage({ message: '文件类型错误!', type: 'error' });
-  if (file.size > MAX_SIZE) return ElMessage({ message: '文件大小不能超过2MB!', type: 'error' });
+  // if (!TYPE.includes(file.type)) return ElMessage({ message: '文件类型错误!', type: 'error' });
+  // if (file.size > MAX_SIZE) return ElMessage({ message: '文件大小不能超过5MB!', type: 'error' });
   console.log('handleFileUpload', file)
   selectedFile.value = file;
 }
@@ -87,16 +93,36 @@ const createFileChunk = (file: File, size = SIZE) => {
 }
 
 const calculateHash = async (chunks: Blob[]): Promise<string> => {
+  // return new Promise((resolve, reject) => {
+  //   const spark = new SparkMD5.ArrayBuffer();
+  //   chunks.forEach((chunk, index) => {
+  //     const fileReader = new FileReader();
+  //     fileReader.readAsArrayBuffer(chunk);
+  //     fileReader.onload = (e) => {
+  //       console.log('spark.append',e.target?.result);
+  //       spark.append(e.target?.result as ArrayBuffer);
+  //     }
+  //   });
+  //   console.log('111', spark.end());
+  //   resolve(spark.end());
+  // })
+  const spark = new SparkMD5.ArrayBuffer();
   return new Promise((resolve, reject) => {
-    const spark = new SparkMD5.ArrayBuffer();
-    chunks.forEach((chunk, index) => {
+    function loadNext(index: number) {
+      if (index >= chunks.length) {
+        console.log('All chunks have been uploaded');
+        const result = spark.end();
+        resolve(result);
+        return;
+      }
       const fileReader = new FileReader();
-      fileReader.readAsArrayBuffer(chunk);
+      fileReader.readAsArrayBuffer(chunks[index]);
       fileReader.onload = (e) => {
         spark.append(e.target?.result as ArrayBuffer);
-      }
-    });
-    resolve(spark.end());
+        loadNext(index + 1);
+      };
+    }
+    loadNext(0);
   })
 }
 
@@ -137,6 +163,6 @@ const uploadChunks = async (chunks: Blob[] = [], hash: string, chunkList: string
 
 <style scoped>
 .box-card {
-  width: 50%;
+  /* width: 50%; */
 }
 </style>
