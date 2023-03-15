@@ -3,10 +3,13 @@
     <!-- 单文件 -->
     <el-card class="box-card">
       <input type="file" ref="fileRef" :disabled="loading" @change="handleFileUpload" />
-      <el-button @click="onSubmit" :loading="loading">upload</el-button>
+      <el-button @click="handleUpload" :loading="loading">upload</el-button>
+      <el-button @click="handleDelete">delete all</el-button>
+
       <div style="height: 2em;">
         <span v-show="!loading" style="font-size: 14px;color:#ccc;">只能上传 XXX/XXX/XXX 格式的文件, 并且大小不能超过5MB</span>
       </div>
+
       <div v-show="loading || uploadPercentage === 100">
         <div>calculate chunk Hash</div>
         <el-progress :percentage="calcChunkPercentage" />
@@ -14,14 +17,12 @@
         <el-progress :percentage="uploadPercentage" />
       </div>
 
-      <br />
-      <br />
     </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { mergeChunks, uploadFile, verifyFile } from './api/upload/api';
+import { deleteAll, mergeChunks, uploadFile, verifyFile } from './api/upload/api';
 import { limitQueue } from './hook/upload';
 
 const fileRef = ref();
@@ -51,14 +52,20 @@ const handleFileUpload = async (event: Event) => {
   selectedFile.value = file;
 }
 
-// const handleDelete = () => {
-//   selectedFile.value = null;
-//   fileRef.value.value = '';
-//   // uploadPercentage.value = 0;
-// }
+const handleDelete = () => {
+  ElMessageBox.confirm(
+    '确认删除所有上传内容吗?',
+    '温馨提示',
+    { confirmButtonText: '确认', cancelButtonText: '取消', type: 'warning' }
+  )
+    .then(async () => {
+      await deleteAll()
+      ElMessage({ type: 'success', message: 'Delete completed' })
+    })
+}
 
-const onSubmit = async () => {
-  console.log('onSubmit')
+const handleUpload = async () => {
+  console.log('handleUpload')
   if (!selectedFile.value) return ElMessage({ message: '请选择文件', type: 'error' });
   loading.value = true;
   uploadPercentage.value = 0;

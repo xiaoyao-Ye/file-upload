@@ -121,4 +121,9 @@ export class AppService {
       };
     }
   }
+
+  async deleteAll() {
+    await remove(resolve(this.UPLOAD_DIR));
+    return { code: 200, message: 'Remove completed!' };
+  }
 }

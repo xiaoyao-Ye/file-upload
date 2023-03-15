@@ -20,3 +20,7 @@ export const mergeChunks = async (data: { fileName: string, fileHash: string, si
 export const verifyFile = async (data: { fileName: string, fileHash: string }) => {
   return await request({ url: '/verify', method: 'post', data });
 }
+
+export const deleteAll = async () => {
+  return await request({ url: '/delete', method: 'delete' });
+}
