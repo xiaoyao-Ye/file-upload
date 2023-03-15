@@ -7,7 +7,6 @@ export const limitQueue = async (requestList: (() => Promise<any>)[], limit: num
     console.log('i =', i);
     result.push(...batchResults);
   }
-  console.log('result =', result);
   return result;
 }
 

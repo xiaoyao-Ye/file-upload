@@ -7,11 +7,11 @@
       <div style="height: 2em;">
         <span v-show="!loading" style="font-size: 14px;color:#ccc;">只能上传 XXX/XXX/XXX 格式的文件, 并且大小不能超过5MB</span>
       </div>
-      <div v-show="loading || percentage === 100">
+      <div v-show="loading || uploadPercentage === 100">
         <div>calculate chunk Hash</div>
-        <el-progress :percentage="percentage" />
+        <el-progress :percentage="calcChunkPercentage" />
         <div>upload percentage</div>
-        <el-progress :percentage="percentage" />
+        <el-progress :percentage="uploadPercentage" />
       </div>
 
       <br />
@@ -21,7 +21,6 @@
 </template>
 
 <script setup lang="ts">
-import SparkMD5 from 'spark-md5';
 import { mergeChunks, uploadFile, verifyFile } from './api/upload/api';
 import { limitQueue } from './hook/upload';
 
@@ -36,8 +35,11 @@ const MAX_SIZE = 5 * 1024 * 1024;
 // const SIZE = 5 * 1024;
 const SIZE = 5 * 1024 * 1024;
 const selectedFile = ref<File | null>(null);
+
+/** 切片进度 */
+const calcChunkPercentage = ref(0);
 /** 上传进度 */
-const percentage = ref(0);
+const uploadPercentage = ref(0);
 const loading = ref(false);
 
 const handleFileUpload = async (event: Event) => {
@@ -52,14 +54,14 @@ const handleFileUpload = async (event: Event) => {
 // const handleDelete = () => {
 //   selectedFile.value = null;
 //   fileRef.value.value = '';
-//   // percentage.value = 0;
+//   // uploadPercentage.value = 0;
 // }
 
 const onSubmit = async () => {
   console.log('onSubmit')
   if (!selectedFile.value) return ElMessage({ message: '请选择文件', type: 'error' });
   loading.value = true;
-  percentage.value = 0;
+  uploadPercentage.value = 0;
   const chunks = createFileChunk(selectedFile.value);
   console.log('chunks', chunks);
   const hash = await calculateHash(chunks);
@@ -69,7 +71,7 @@ const onSubmit = async () => {
     const { needUpload, chunkList } = await verifyFile({ fileHash: hash, fileName: selectedFile.value?.name ?? FILE_NAME });
     if (!needUpload) {
       loading.value = false;
-      percentage.value = 100;
+      uploadPercentage.value = 100;
       return ElMessage({ message: '上传成功.', type: 'success' });
     }
 
@@ -93,36 +95,14 @@ const createFileChunk = (file: File, size = SIZE) => {
 }
 
 const calculateHash = async (chunks: Blob[]): Promise<string> => {
-  // return new Promise((resolve, reject) => {
-  //   const spark = new SparkMD5.ArrayBuffer();
-  //   chunks.forEach((chunk, index) => {
-  //     const fileReader = new FileReader();
-  //     fileReader.readAsArrayBuffer(chunk);
-  //     fileReader.onload = (e) => {
-  //       console.log('spark.append',e.target?.result);
-  //       spark.append(e.target?.result as ArrayBuffer);
-  //     }
-  //   });
-  //   console.log('111', spark.end());
-  //   resolve(spark.end());
-  // })
-  const spark = new SparkMD5.ArrayBuffer();
   return new Promise((resolve, reject) => {
-    function loadNext(index: number) {
-      if (index >= chunks.length) {
-        console.log('All chunks have been uploaded');
-        const result = spark.end();
-        resolve(result);
-        return;
-      }
-      const fileReader = new FileReader();
-      fileReader.readAsArrayBuffer(chunks[index]);
-      fileReader.onload = (e) => {
-        spark.append(e.target?.result as ArrayBuffer);
-        loadNext(index + 1);
-      };
+    const worker = new Worker('../public/hash.js');
+    worker.postMessage({ chunks });
+    worker.onmessage = (e) => {
+      const { percentage, hash } = e.data;
+      calcChunkPercentage.value = Math.round(percentage);
+      if (hash) resolve(hash);
     }
-    loadNext(0);
   })
 }
 
@@ -139,18 +119,18 @@ const uploadChunks = async (chunks: Blob[] = [], hash: string, chunkList: string
     .filter(({ hash }) => !chunkList.includes(hash))
     .map(({ formData, index }) => {
       return () => uploadFile(formData, (progressEvent) => {
-        console.log(`----------------${index} ----------------:`);
-        console.log(`loaded :`, progressEvent.loaded);
-        console.log(`total :`, progressEvent.total);
+        // console.log(`----------------${index} ----------------:`);
+        // console.log(`loaded :`, progressEvent.loaded);
+        // console.log(`total :`, progressEvent.total);
         const chunkPercentage = progressEvent.loaded / progressEvent.total!
-        console.log(`chunkPercentage: `, chunkPercentage);
-        // if (chunkPercentage === 1) percentage.value = Math.round((index + 1) / chunks.length * 100);
+        // console.log(`chunkPercentage: `, chunkPercentage);
+        // if (chunkPercentage === 1) uploadPercentage.value = Math.round((index + 1) / chunks.length * 100);
         if (chunkPercentage === 1) {
           // OnProgress 可能好几个请求一起调用 index 不一定准确, 所以用 uploadCount 来计算
           uploadCount++;
-          percentage.value = Math.round((uploadCount) / chunks.length * 100);
+          uploadPercentage.value = Math.round((uploadCount) / chunks.length * 100);
         }
-        console.log(`percentage: `, percentage.value);
+        console.log(`uploadPercentage: `, uploadPercentage.value);
       });
     });
   console.log('requestList count: ', requestList.length);
