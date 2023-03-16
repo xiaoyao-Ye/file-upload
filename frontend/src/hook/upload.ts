@@ -1,10 +1,8 @@
-// TODO: 这种方式可以完美实现并发, 但是每批请求(limit)之间会有一定的间隔, 有待优化
 export const limitQueue = async (requestList: (() => Promise<any>)[], limit: number) => {
   let result: Promise<any>[] = [];
   for (let i = 0; i < requestList.length; i += limit) {
     const list = requestList.slice(i, i + limit);
     const batchResults = await Promise.all(list.map((item) => item()));
-    console.log('i =', i);
     result.push(...batchResults);
   }
   return result;

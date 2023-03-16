@@ -2,15 +2,17 @@
   <div>
     <!-- 单文件 -->
     <el-card class="box-card">
-      <input type="file" ref="fileRef" :disabled="loading" @change="handleFileUpload" />
-      <el-button @click="handleUpload" :loading="loading">upload</el-button>
+      <input type="file" ref="fileRef" :disabled="status !== Status.wait" @change="handleFileUpload" />
+      <el-button @click="handleUpload" :disabled="uploadDisabled">upload</el-button>
+      <el-button v-if="status === Status.pause" @click="handleResume">resume</el-button>
+      <el-button v-else :disabled="status !== Status.uploading || !hash" @click="handlePause">pause</el-button>
       <el-button @click="handleDelete">delete all</el-button>
 
       <div style="height: 2em;">
-        <span v-show="!loading" style="font-size: 14px;color:#ccc;">只能上传 XXX/XXX/XXX 格式的文件, 并且大小不能超过5MB</span>
+        <span style="font-size: 14px;color:#ccc;">只能上传 XXX/XXX/XXX 格式的文件, 并且大小不能超过5MB</span>
       </div>
 
-      <div v-show="loading || uploadPercentage === 100">
+      <div>
         <div>calculate chunk Hash</div>
         <el-progress :percentage="calcChunkPercentage" />
         <div>upload percentage</div>
@@ -22,8 +24,18 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { deleteAll, mergeChunks, uploadFile, verifyFile } from './api/upload/api';
 import { limitQueue } from './hook/upload';
+
+enum Status {
+  wait = "wait",
+  pause = "pause",
+  uploading = "uploading",
+};
+const status = ref(Status.wait);
+const hash = ref<string>('');
 
 const fileRef = ref();
 /** 默认文件名 */
@@ -41,7 +53,19 @@ const selectedFile = ref<File | null>(null);
 const calcChunkPercentage = ref(0);
 /** 上传进度 */
 const uploadPercentage = ref(0);
-const loading = ref(false);
+/** 分片列表 */
+interface Chunk {
+  chunk: Blob;
+  hash?: string;
+  fileName?: string;
+  fileHash?: string;
+}
+const chunks = ref<Chunk[]>([]);
+/** 请求列表 */
+const requestList = ref<(() => Promise<any>)[]>([]);
+const worker = ref<Worker | null>(null);
+
+const uploadDisabled = computed(() => [Status.pause, Status.uploading].includes(status.value))
 
 const handleFileUpload = async (event: Event) => {
   const file = (<HTMLInputElement>event.target).files?.[0];
@@ -50,6 +74,23 @@ const handleFileUpload = async (event: Event) => {
   // if (file.size > MAX_SIZE) return ElMessage({ message: '文件大小不能超过5MB!', type: 'error' });
   console.log('handleFileUpload', file)
   selectedFile.value = file;
+}
+
+const handleResume = async () => {
+  status.value = Status.uploading;
+  const { chunkList } = await verifyFile({ fileHash: hash.value, fileName: selectedFile.value?.name ?? FILE_NAME })
+    .catch(() => { status.value = Status.pause; });
+  await uploadChunks(chunkList);
+}
+
+const handlePause = () => {
+  status.value = Status.pause;
+  // TODO: 取消请求, 这里理论上应该使用axios的cancelToken
+  // 暂时先这样, 当前这种暂停方式只能取消未发出去的请求, 发送中的请求无法取消
+  requestList.value.length = 0;
+  console.log('handlePause', requestList.value);
+  if (worker.value) worker.value.onmessage = null;
+
 }
 
 const handleDelete = () => {
@@ -67,45 +108,47 @@ const handleDelete = () => {
 const handleUpload = async () => {
   console.log('handleUpload')
   if (!selectedFile.value) return ElMessage({ message: '请选择文件', type: 'error' });
-  loading.value = true;
+  status.value = Status.uploading;
   uploadPercentage.value = 0;
-  const chunks = createFileChunk(selectedFile.value);
-  console.log('chunks', chunks);
-  const hash = await calculateHash(chunks);
-  console.log('hash', hash);
+  const fileChunkList = createFileChunk(selectedFile.value);
+  console.log('chunks', fileChunkList);
+  hash.value = await calculateHash(fileChunkList);
+  console.log('hash', hash.value);
 
-  try {
-    const { needUpload, chunkList } = await verifyFile({ fileHash: hash, fileName: selectedFile.value?.name ?? FILE_NAME });
-    if (!needUpload) {
-      loading.value = false;
-      uploadPercentage.value = 100;
-      return ElMessage({ message: '上传成功.', type: 'success' });
-    }
-
-    await uploadChunks(chunks, hash, chunkList);
-    const mergeOptions = { fileHash: hash, fileName: selectedFile.value?.name ?? FILE_NAME, size: SIZE }
-    await mergeChunks(mergeOptions);
-    ElMessage({ message: '上传成功.', type: 'success' })
-  } finally {
-    loading.value = false;
+  const { needUpload, chunkList } = await verifyFile({ fileHash: hash.value, fileName: selectedFile.value?.name ?? FILE_NAME })
+    .catch(() => { status.value = Status.wait; });
+  if (!needUpload) {
+    status.value = Status.wait;
+    uploadPercentage.value = 100;
+    return ElMessage({ message: '上传成功.', type: 'success' });
   }
+
+
+  chunks.value = fileChunkList.map(({ chunk }, index: number) => ({
+    chunk: chunk,
+    hash: `${hash.value}-${index}`,
+    fileName: selectedFile.value?.name ?? FILE_NAME,
+    fileHash: hash.value,
+  }))
+
+  await uploadChunks(chunkList);
 }
 
 const createFileChunk = (file: File, size = SIZE) => {
-  const chunks: Blob[] = [];
+  const chunks = [];
   let cur = 0;
   while (cur < file.size) {
-    chunks.push(file.slice(cur, cur + size));
+    chunks.push({ chunk: file.slice(cur, cur + size) });
     cur += size;
   }
   return chunks;
 }
 
-const calculateHash = async (chunks: Blob[]): Promise<string> => {
+const calculateHash = async (fileChunkList: Chunk[]): Promise<string> => {
   return new Promise((resolve, reject) => {
-    const worker = new Worker('../public/hash.js');
-    worker.postMessage({ chunks });
-    worker.onmessage = (e) => {
+    worker.value = new Worker('../public/hash.js');
+    worker.value.postMessage({ chunks: fileChunkList });
+    worker.value.onmessage = (e) => {
       const { percentage, hash } = e.data;
       calcChunkPercentage.value = Math.round(percentage);
       if (hash) resolve(hash);
@@ -113,37 +156,44 @@ const calculateHash = async (chunks: Blob[]): Promise<string> => {
   })
 }
 
-const uploadChunks = async (chunks: Blob[] = [], hash: string, chunkList: string[]) => {
+const uploadChunks = async (chunkList: string[] = []) => {
   let uploadCount = 0;
-  const requestList = chunks.map((chunk, index) => {
-    const formData = new FormData();
-    formData.append('chunk', chunk);
-    formData.append('hash', `${hash}-${index}`);
-    formData.append('fileName', selectedFile.value?.name ?? FILE_NAME);
-    formData.append('fileHash', hash);
-    return { formData, hash: `${hash}-${index}`, index };
-  })
-    .filter(({ hash }) => !chunkList.includes(hash))
-    .map(({ formData, index }) => {
+  requestList.value = chunks.value
+    .filter(({ hash }) => !chunkList.includes(hash!))
+    .map((file) => {
+      const formData = new FormData();
+      formData.append('chunk', file.chunk);
+      formData.append('hash', file.hash!);
+      formData.append('fileName', file.fileName!);
+      formData.append('fileHash', file.fileHash!);
+      return { formData };
+    })
+    .map(({ formData }) => {
       return () => uploadFile(formData, (progressEvent) => {
-        // console.log(`----------------${index} ----------------:`);
-        // console.log(`loaded :`, progressEvent.loaded);
-        // console.log(`total :`, progressEvent.total);
         const chunkPercentage = progressEvent.loaded / progressEvent.total!
-        // console.log(`chunkPercentage: `, chunkPercentage);
-        // if (chunkPercentage === 1) uploadPercentage.value = Math.round((index + 1) / chunks.length * 100);
         if (chunkPercentage === 1) {
-          // OnProgress 可能好几个请求一起调用 index 不一定准确, 所以用 uploadCount 来计算
           uploadCount++;
-          uploadPercentage.value = Math.round((uploadCount) / chunks.length * 100);
+          uploadPercentage.value = Math.round((uploadCount) / chunks.value.length * 100);
         }
         console.log(`uploadPercentage: `, uploadPercentage.value);
       });
     });
-  console.log('requestList count: ', requestList.length);
-  // await Promise.all(requestList)
-  const result = await limitQueue(requestList, 4);
-  console.log('result', result);
+  console.log('requestList count: ', requestList.value.length);
+  // await Promise.all(requestList.value)
+
+  try {
+    const result = await limitQueue(requestList.value, 4);
+    console.log('result', result);
+    // 如果上传过程中暂停, 则不合并
+    if (status.value === Status.pause) return;
+    const mergeOptions = { fileHash: hash.value, fileName: selectedFile.value?.name ?? FILE_NAME, size: SIZE }
+    await mergeChunks(mergeOptions);
+    uploadPercentage.value = 100;
+    ElMessage({ message: '上传成功.', type: 'success' })
+    status.value = Status.wait;
+  } catch (error) {
+    status.value = Status.wait;
+  }
 }
 
 </script>

@@ -17,7 +17,7 @@ self.onmessage = function (e) {
       self.close();
     }
     const fileReader = new FileReader();
-    fileReader.readAsArrayBuffer(chunks[index]);
+    fileReader.readAsArrayBuffer(chunks[index].chunk);
     fileReader.onload = (e) => {
       percentage += chunkPercentage;
       self.postMessage({ percentage });
